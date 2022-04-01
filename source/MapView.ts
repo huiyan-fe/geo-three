@@ -6,10 +6,11 @@ import {MapPlaneNode} from './nodes/MapPlaneNode';
 import {MapSphereNode} from './nodes/MapSphereNode';
 import {MapHeightNodeShader} from './nodes/MapHeightNodeShader';
 import {LODRaycast} from './lod/LODRaycast';
+import {LODFrustum} from './lod/LODFrustum';
 import {MapProvider} from './providers/MapProvider';
 import {LODControl} from './lod/LODControl';
 import {MapMartiniHeightNode} from './nodes/MapMartiniHeightNode';
-
+import {MapTerrainNode} from './nodes/MapTerrainNode';
 /**
  * Map viewer is used to read and display map tiles from a server.
  *
@@ -44,6 +45,9 @@ export class MapView extends Mesh
 	 */
 	public static MARTINI: number = 204;
 
+
+	public static TERRAIN: number = 205;
+
 	/**
 	 * Map of the map node types available.
 	 */
@@ -52,13 +56,16 @@ export class MapView extends Mesh
 		[MapView.SPHERICAL, MapSphereNode],
 		[MapView.HEIGHT, MapHeightNode],
 		[MapView.HEIGHT_SHADER, MapHeightNodeShader],
-		[MapView.MARTINI, MapMartiniHeightNode]
+		[MapView.MARTINI, MapMartiniHeightNode],
+		[MapView.TERRAIN, MapTerrainNode]
 	]);
 
 	/**
 	 * LOD control object used to defined how tiles are loaded in and out of memory.
 	 */
 	public lod: LODControl = null;
+
+	public onNodeReady: Function = null;
 
 	/**
 	 * Map tile color layer provider.
@@ -88,7 +95,7 @@ export class MapView extends Mesh
 	{
 		super(undefined, new MeshBasicMaterial({transparent: true, opacity: 0.0}));
 
-		this.lod = new LODRaycast();
+		this.lod = new LODFrustum();
 
 		this.provider = provider;
 		this.heightProvider = heightProvider;
@@ -101,10 +108,15 @@ export class MapView extends Mesh
 	 *
 	 * Called everytime before render.
 	 */
-	public onBeforeRender: (renderer: WebGLRenderer, scene: Scene, camera: Camera, geometry: BufferGeometry, material: Material, group: Group)=> void = (renderer, scene, camera, geometry, material, group) => 
+	// public onBeforeRender: (renderer: WebGLRenderer, scene: Scene, camera: Camera, geometry: BufferGeometry, material: Material, group: Group)=> void = (renderer, scene, camera, geometry, material, group) => 
+	// {
+	// 	this.lod.updateLOD(this, camera, renderer, scene);
+	// };
+
+	public update(camera: Camera, renderer: WebGLRenderer, scene: Scene): void
 	{
 		this.lod.updateLOD(this, camera, renderer, scene);
-	};
+	}
 
 	/**
 	 * Set the root of the map view.

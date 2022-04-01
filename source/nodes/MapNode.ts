@@ -152,7 +152,9 @@ export abstract class MapNode extends Mesh
 	 *
 	 * Called automatically by the constructor for child nodes and MapView when a root node is attached to it.
 	 */
-	public initialize(): void {}
+	public initialize(): void {
+		this.mapView.onNodeCreated && this.mapView.onNodeCreated(this);
+	}
 
 	/**
 	 * Create the child nodes to represent the next tree level.
@@ -185,6 +187,7 @@ export abstract class MapNode extends Mesh
 		{
 			this.createChildNodes();
 		}
+		this.mapView.onNodeSubdivided && this.mapView.onNodeSubdivided();
 	}
 
 	/**
@@ -204,6 +207,7 @@ export abstract class MapNode extends Mesh
 		this.subdivided = false;
 		this.isMesh = true;
 		this.children = [];
+		// console.log("simplify")
 	}
 
 	/**
@@ -271,6 +275,8 @@ export abstract class MapNode extends Mesh
 		{
 			this.visible = true;
 		}
+		// console.log('node ready');
+		this.mapView.onNodeReady && this.mapView.onNodeReady();
 	}
 
 	/**

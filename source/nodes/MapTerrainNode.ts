@@ -8,13 +8,9 @@ import {MapNodeHeightGeometry} from '../geometries/MapNodeHeightGeometry';
 import {CanvasUtils} from '../utils/CanvasUtils';
 
 /**
- * Represents a height map tile node that can be subdivided into other height nodes.
- *
- * Its important to update match the height of the tile with the neighbors nodes edge heights to ensure proper continuity of the surface.
- *
- * The height node is designed to use MapBox elevation tile encoded data as described in https://www.mapbox.com/help/access-elevation-data/
+ * for cesium
  */
-export class MapHeightNode extends MapNode 
+export class MapTerrainNode extends MapNode 
 {
 	/**
 	 * Flag indicating if the tile height data was loaded.
@@ -62,11 +58,10 @@ export class MapHeightNode extends MapNode
 	 * @param material - Material used to render this height node.
 	 * @param geometry - Geometry used to render this height node.
 	 */
-	public constructor(parentNode: MapHeightNode = null, mapView: MapView = null, location: number = MapNode.root, level: number = 0, x: number = 0, y: number = 0, geometry: BufferGeometry = MapHeightNode.geometry, material: Material = new MeshStandardMaterial({wireframe: false, color: 0xffffff})) 
+	public constructor(parentNode: MapTerrainNode = null, mapView: MapView = null, location: number = MapNode.root, level: number = 0, x: number = 0, y: number = 0, geometry: BufferGeometry = MapTerrainNode.geometry, material: Material = new MeshStandardMaterial({wireframe: false, color: 0xffffff})) 
 	{
 		super(parentNode, mapView, location, level, x, y, geometry, material);
 
-		material.alphaTest = 0.1;
 		this.isMesh = true;
 		this.visible = false;
 		this.matrixAutoUpdate = false;
@@ -98,11 +93,7 @@ export class MapHeightNode extends MapNode
 
 			// @ts-ignore
 			this.material.map = texture;
-		})
-		.catch(err => {
-			console.log('texture error');
-		})
-		.finally(() =>
+		}).finally(() =>
 		{
 			this.textureLoaded = true;
 			this.nodeReady();
@@ -169,22 +160,14 @@ export class MapHeightNode extends MapNode
 			throw new Error('GeoThree: MapView.heightProvider provider is null.');
 		}
 
-		return this.mapView.heightProvider.fetchTile(this.level, this.x, this.y).then((image) => 
+		return this.mapView.heightProvider.fetchTile(this.level, this.x, this.y).then((buffer) => 
 		{
-			const canvas = CanvasUtils.createOffscreenCanvas(this.geometrySize + 1, this.geometrySize + 1);
-
-			const context = canvas.getContext('2d');
-			context.imageSmoothingEnabled = false;
-			context.drawImage(image, 0, 0, MapHeightNode.tileSize, MapHeightNode.tileSize, 0, 0, canvas.width, canvas.height);
-
-			const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
 			const geometry = new MapNodeHeightGeometry(1, 1, this.geometrySize, this.geometrySize, true, 10.0, imageData, true);
 
 			this.geometry = geometry;
 		}).catch(() =>
 		{
-			// console.error('GeoThree: Failed to load height node data.', this);
+			console.error('GeoThree: Failed to load height node data.', this);
 		}).finally(() =>
 		{
 			this.heightLoaded = true;

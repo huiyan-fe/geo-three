@@ -31,7 +31,9 @@
 	<select id="lod" style="position: absolute; top: 110px; right: 20px;"></select>
 
 	<!-- API KEys -->
-	<input id="mapbox_api" placeholder="Mapbox API KEY" style="top: 140px; right: 20px;"></input>
+	<input id="mapbox_api" 
+		value="pk.eyJ1IjoibGlnYW9mZW5nMDkwMSIsImEiOiJjazJ4MGM4a24wbDhwM2xsenNjcGFwNmxmIn0.NHeyO2E3JokHL5zktvWo6A"
+		placeholder="Mapbox API KEY" style="top: 140px; right: 20px;"></input>
 	<input id="heremaps_id" placeholder="HERE Maps ID" style="top: 170px; right: 20px; "></input>
 	<input id="heremaps_code" placeholder="HERE Maps Code" style="top: 200px; right: 20px;"></input>
 	<input id="bing_api" placeholder="Bing API KEY" style="top: 230px; right: 20px;"></input>
@@ -122,6 +124,7 @@
 			if(map !== undefined)
 			{
 				map.lod = new lods[lod.selectedIndex][1]();
+				console.log(map.lod);
 			}
 		};
 		for(var i = 0; i < lods.length; i++)
@@ -137,7 +140,8 @@
 			if(map !== undefined)
 			{
 				scene.remove(map);
-				map = new Geo.MapView(modes[mode.selectedIndex][0], providers[providerColor.selectedIndex][0], providers[providerHeight.selectedIndex][1]);
+				console.log(modes[mode.selectedIndex][0], providers[providerColor.selectedIndex][0], providers[providerHeight.selectedIndex][1]);
+				map = new Geo.MapView(modes[mode.selectedIndex][1], providers[providerColor.selectedIndex][1], providers[providerHeight.selectedIndex][1]);
 				scene.add(map);
 			}
 		};
@@ -179,9 +183,10 @@
 			providerHeight.appendChild(option);
 		}
 
-		mode.selectedIndex = 0;
+		mode.selectedIndex = 1;
 		providerColor.selectedIndex = 12;
 		providerHeight.selectedIndex = 15;
+		lod.selectedIndex = 1;
 
 		var map = new Geo.MapView(modes[mode.selectedIndex][1], providers[providerColor.selectedIndex][1], providers[providerHeight.selectedIndex][1]);
 		scene.add(map);
@@ -196,10 +201,11 @@
 		var controls = new THREE.MapControls(camera, canvas);
 		controls.minDistance = 1e1;
 		controls.zoomSpeed = 2.0;
+
 		
 		var coords = Geo.UnitsUtils.datumsToSpherical(40.940119, -8.535589);
 		controls.target.set(coords.x, 0, -coords.y);
-		camera.position.set(0, 1000, 0);
+		camera.position.set(0, 500000, 0);
 
 		scene.add(new THREE.AmbientLight(0x777777));
 
@@ -217,10 +223,29 @@
 		}
 		document.body.onresize();
 
+		let shouldUpdate = true;
+		map.onNodeReady = () => {
+			// console.log("onNodeReady");
+			shouldUpdate = true;
+		};
+		map.onNodeCreated = () => {
+			// console.log("onNodeCreated");
+			shouldUpdate = true;
+		}
+
+		map.onNodeSubdivided = () => {
+			// console.log("onNodeSubdivided");
+			shouldUpdate = true;
+		}
 		function animate()
 		{
 			requestAnimationFrame(animate);
 			controls.update();
+			if (shouldUpdate) {
+				shouldUpdate = false;
+				map.update(camera);
+			}
+			
 			renderer.render(scene, camera);
 		}
 		animate();

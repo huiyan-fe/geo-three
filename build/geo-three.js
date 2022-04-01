@@ -184,7 +184,9 @@
 	        this.y = y;
 	        this.initialize();
 	    }
-	    initialize() { }
+	    initialize() {
+	        this.mapView.onNodeCreated && this.mapView.onNodeCreated(this);
+	    }
 	    createChildNodes() { }
 	    subdivide() {
 	        const maxZoom = Math.min(this.mapView.provider.maxZoom, this.mapView.heightProvider.maxZoom);
@@ -199,6 +201,7 @@
 	        else {
 	            this.createChildNodes();
 	        }
+	        this.mapView.onNodeSubdivided && this.mapView.onNodeSubdivided();
 	    }
 	    simplify() {
 	        if (this.cacheChild && this.children.length > 0) {
@@ -245,6 +248,7 @@
 	        else {
 	            this.visible = true;
 	        }
+	        this.mapView.onNodeReady && this.mapView.onNodeReady();
 	    }
 	    getNeighborsDirection(direction) {
 	        return null;
@@ -358,8 +362,13 @@
 	            const r = data[i];
 	            const g = data[i + 1];
 	            const b = data[i + 2];
-	            const value = (r * 65536 + g * 256 + b) * 0.1 - 1e4;
-	            vertices[j + 1] = value;
+	            if (r === 0 && g === 0 && b === 0) {
+	                vertices[j + 1] = 0;
+	            }
+	            else {
+	                const value = (r * 65536 + g * 256 + b) * 0.1 - 1e4;
+	                vertices[j + 1] = value;
+	            }
 	        }
 	        if (skirt) {
 	            MapNodeGeometry.buildSkirt(width, height, widthSegments, heightSegments, skirtDepth, indices, vertices, normals, uvs);
@@ -411,12 +420,13 @@
 	}
 
 	class MapHeightNode extends MapNode {
-	    constructor(parentNode = null, mapView = null, location = MapNode.root, level = 0, x = 0, y = 0, geometry = MapHeightNode.geometry, material = new three.MeshPhongMaterial({ wireframe: false, color: 0xffffff })) {
+	    constructor(parentNode = null, mapView = null, location = MapNode.root, level = 0, x = 0, y = 0, geometry = MapHeightNode.geometry, material = new three.MeshStandardMaterial({ wireframe: false, color: 0xffffff })) {
 	        super(parentNode, mapView, location, level, x, y, geometry, material);
 	        this.heightLoaded = false;
 	        this.textureLoaded = false;
 	        this.geometrySize = 16;
 	        this.geometryNormals = false;
+	        material.alphaTest = 0.1;
 	        this.isMesh = true;
 	        this.visible = false;
 	        this.matrixAutoUpdate = false;
@@ -435,7 +445,11 @@
 	            texture.minFilter = three.LinearFilter;
 	            texture.needsUpdate = true;
 	            this.material.map = texture;
-	        }).finally(() => {
+	        })
+	            .catch(err => {
+	            console.log('texture error');
+	        })
+	            .finally(() => {
 	            this.textureLoaded = true;
 	            this.nodeReady();
 	        });
@@ -490,7 +504,6 @@
 	            const geometry = new MapNodeHeightGeometry(1, 1, this.geometrySize, this.geometrySize, true, 10.0, imageData, true);
 	            this.geometry = geometry;
 	        }).catch(() => {
-	            console.error('GeoThree: Failed to load height node data.', this);
 	        }).finally(() => {
 	            this.heightLoaded = true;
 	            this.nodeReady();
@@ -717,45 +730,57 @@
 	MapHeightNodeShader.baseGeometry = MapPlaneNode.geometry;
 	MapHeightNodeShader.baseScale = new three.Vector3(UnitsUtils.EARTH_PERIMETER, 1, UnitsUtils.EARTH_PERIMETER);
 
-	class LODRaycast {
+	const pov$1 = new three.Vector3();
+	const position$1 = new three.Vector3();
+	class LODRadial {
 	    constructor() {
-	        this.subdivisionRays = 1;
-	        this.thresholdUp = 0.6;
-	        this.thresholdDown = 0.15;
-	        this.raycaster = new three.Raycaster();
-	        this.mouse = new three.Vector2();
-	        this.powerDistance = false;
-	        this.scaleDistance = true;
+	        this.subdivideDistance = 50;
+	        this.simplifyDistance = 300;
 	    }
 	    updateLOD(view, camera, renderer, scene) {
-	        const intersects = [];
-	        for (let t = 0; t < this.subdivisionRays; t++) {
-	            this.mouse.set(Math.random() * 2 - 1, Math.random() * 2 - 1);
-	            this.raycaster.setFromCamera(this.mouse, camera);
-	            this.raycaster.intersectObjects(view.children, true, intersects);
-	        }
-	        for (let i = 0; i < intersects.length; i++) {
-	            const node = intersects[i].object;
-	            let distance = intersects[i].distance;
-	            if (this.powerDistance) {
-	                distance = Math.pow(distance * 2, node.level);
-	            }
-	            if (this.scaleDistance) {
-	                const matrix = node.matrixWorld.elements;
-	                const vector = new three.Vector3(matrix[0], matrix[1], matrix[2]);
-	                distance = vector.length() / distance;
-	            }
-	            if (distance > this.thresholdUp) {
+	        camera.getWorldPosition(pov$1);
+	        view.children[0].traverse((node) => {
+	            node.getWorldPosition(position$1);
+	            let distance = pov$1.distanceTo(position$1);
+	            distance /= Math.pow(2, view.provider.maxZoom - node.level);
+	            if (distance < this.subdivideDistance) {
 	                node.subdivide();
-	                return;
 	            }
-	            else if (distance < this.thresholdDown) {
-	                if (node.parentNode !== null) {
-	                    node.parentNode.simplify();
-	                    return;
-	                }
+	            else if (distance > this.simplifyDistance && node.parentNode) {
+	                node.parentNode.simplify();
 	            }
-	        }
+	        });
+	    }
+	}
+
+	const projection = new three.Matrix4();
+	const pov = new three.Vector3();
+	const frustum = new three.Frustum();
+	const position = new three.Vector3();
+	class LODFrustum extends LODRadial {
+	    constructor() {
+	        super(...arguments);
+	        this.subdivideDistance = 120;
+	        this.simplifyDistance = 400;
+	        this.testCenter = true;
+	        this.pointOnly = false;
+	    }
+	    updateLOD(view, camera, renderer, scene) {
+	        projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+	        frustum.setFromProjectionMatrix(projection);
+	        camera.getWorldPosition(pov);
+	        view.children[0].traverse((node) => {
+	            node.getWorldPosition(position);
+	            let distance = pov.distanceTo(position);
+	            distance /= Math.pow(2, view.provider.maxZoom - node.level);
+	            const inFrustum = this.pointOnly ? frustum.containsPoint(position) : frustum.intersectsObject(node);
+	            if (distance < this.subdivideDistance && inFrustum) {
+	                node.subdivide();
+	            }
+	            else if (distance > this.simplifyDistance && node.parentNode) {
+	                node.parentNode.simplify();
+	            }
+	        });
 	    }
 	}
 
@@ -1205,20 +1230,114 @@
 	MapMartiniHeightNode.geometry = new MapNodeGeometry(1, 1, 1, 1);
 	MapMartiniHeightNode.tileSize = 256;
 
+	class MapTerrainNode extends MapNode {
+	    constructor(parentNode = null, mapView = null, location = MapNode.root, level = 0, x = 0, y = 0, geometry = MapTerrainNode.geometry, material = new three.MeshStandardMaterial({ wireframe: false, color: 0xffffff })) {
+	        super(parentNode, mapView, location, level, x, y, geometry, material);
+	        this.heightLoaded = false;
+	        this.textureLoaded = false;
+	        this.geometrySize = 16;
+	        this.geometryNormals = false;
+	        this.isMesh = true;
+	        this.visible = false;
+	        this.matrixAutoUpdate = false;
+	    }
+	    initialize() {
+	        super.initialize();
+	        this.loadTexture();
+	        this.loadHeightGeometry();
+	    }
+	    loadTexture() {
+	        this.mapView.provider.fetchTile(this.level, this.x, this.y).then((image) => {
+	            const texture = new three.Texture(image);
+	            texture.generateMipmaps = false;
+	            texture.format = three.RGBAFormat;
+	            texture.magFilter = three.LinearFilter;
+	            texture.minFilter = three.LinearFilter;
+	            texture.needsUpdate = true;
+	            this.material.map = texture;
+	        }).finally(() => {
+	            this.textureLoaded = true;
+	            this.nodeReady();
+	        });
+	    }
+	    nodeReady() {
+	        if (!this.heightLoaded || !this.textureLoaded) {
+	            return;
+	        }
+	        this.visible = true;
+	        super.nodeReady();
+	    }
+	    createChildNodes() {
+	        const level = this.level + 1;
+	        const Constructor = Object.getPrototypeOf(this).constructor;
+	        const x = this.x * 2;
+	        const y = this.y * 2;
+	        let node = new Constructor(this, this.mapView, MapNode.topLeft, level, x, y);
+	        node.scale.set(0.5, 1.0, 0.5);
+	        node.position.set(-0.25, 0, -0.25);
+	        this.add(node);
+	        node.updateMatrix();
+	        node.updateMatrixWorld(true);
+	        node = new Constructor(this, this.mapView, MapNode.topRight, level, x + 1, y);
+	        node.scale.set(0.5, 1.0, 0.5);
+	        node.position.set(0.25, 0, -0.25);
+	        this.add(node);
+	        node.updateMatrix();
+	        node.updateMatrixWorld(true);
+	        node = new Constructor(this, this.mapView, MapNode.bottomLeft, level, x, y + 1);
+	        node.scale.set(0.5, 1.0, 0.5);
+	        node.position.set(-0.25, 0, 0.25);
+	        this.add(node);
+	        node.updateMatrix();
+	        node.updateMatrixWorld(true);
+	        node = new Constructor(this, this.mapView, MapNode.bottomRight, level, x + 1, y + 1);
+	        node.scale.set(0.5, 1.0, 0.5);
+	        node.position.set(0.25, 0, 0.25);
+	        this.add(node);
+	        node.updateMatrix();
+	        node.updateMatrixWorld(true);
+	    }
+	    loadHeightGeometry() {
+	        if (this.mapView.heightProvider === null) {
+	            throw new Error('GeoThree: MapView.heightProvider provider is null.');
+	        }
+	        return this.mapView.heightProvider.fetchTile(this.level, this.x, this.y).then((buffer) => {
+	            const geometry = new MapNodeHeightGeometry(1, 1, this.geometrySize, this.geometrySize, true, 10.0, imageData, true);
+	            this.geometry = geometry;
+	        }).catch(() => {
+	            console.error('GeoThree: Failed to load height node data.', this);
+	        }).finally(() => {
+	            this.heightLoaded = true;
+	            this.nodeReady();
+	        });
+	    }
+	    raycast(raycaster, intersects) {
+	        if (this.isMesh === true) {
+	            return super.raycast(raycaster, intersects);
+	        }
+	        return false;
+	    }
+	}
+	MapTerrainNode.tileSize = 256;
+	MapTerrainNode.geometry = new MapNodeGeometry(1, 1, 1, 1);
+	MapTerrainNode.baseGeometry = MapPlaneNode.geometry;
+	MapTerrainNode.baseScale = new three.Vector3(UnitsUtils.EARTH_PERIMETER, 1, UnitsUtils.EARTH_PERIMETER);
+
 	class MapView extends three.Mesh {
 	    constructor(root = MapView.PLANAR, provider = new OpenStreetMapsProvider(), heightProvider = null) {
 	        super(undefined, new three.MeshBasicMaterial({ transparent: true, opacity: 0.0 }));
 	        this.lod = null;
+	        this.onNodeReady = null;
 	        this.provider = null;
 	        this.heightProvider = null;
 	        this.root = null;
-	        this.onBeforeRender = (renderer, scene, camera, geometry, material, group) => {
-	            this.lod.updateLOD(this, camera, renderer, scene);
-	        };
-	        this.lod = new LODRaycast();
+	        this.lod = new LODFrustum();
 	        this.provider = provider;
 	        this.heightProvider = heightProvider;
 	        this.setRoot(root);
+	    }
+	    update(camera, renderer, scene) {
+	        this.lod.updateLOD(this, camera, renderer, scene);
 	    }
 	    setRoot(root) {
 	        if (typeof root === 'number') {
@@ -1275,65 +1394,55 @@
 	MapView.HEIGHT = 202;
 	MapView.HEIGHT_SHADER = 203;
 	MapView.MARTINI = 204;
+	MapView.TERRAIN = 205;
 	MapView.mapModes = new Map([
 	    [MapView.PLANAR, MapPlaneNode],
 	    [MapView.SPHERICAL, MapSphereNode],
 	    [MapView.HEIGHT, MapHeightNode],
 	    [MapView.HEIGHT_SHADER, MapHeightNodeShader],
-	    [MapView.MARTINI, MapMartiniHeightNode]
+	    [MapView.MARTINI, MapMartiniHeightNode],
+	    [MapView.TERRAIN, MapTerrainNode]
 	]);
 
-	const pov$1 = new three.Vector3();
-	const position$1 = new three.Vector3();
-	class LODRadial {
+	class LODRaycast {
 	    constructor() {
-	        this.subdivideDistance = 50;
-	        this.simplifyDistance = 300;
+	        this.subdivisionRays = 1;
+	        this.thresholdUp = 0.6;
+	        this.thresholdDown = 0.15;
+	        this.raycaster = new three.Raycaster();
+	        this.mouse = new three.Vector2();
+	        this.powerDistance = false;
+	        this.scaleDistance = true;
 	    }
 	    updateLOD(view, camera, renderer, scene) {
-	        camera.getWorldPosition(pov$1);
-	        view.children[0].traverse((node) => {
-	            node.getWorldPosition(position$1);
-	            let distance = pov$1.distanceTo(position$1);
-	            distance /= Math.pow(2, view.provider.maxZoom - node.level);
-	            if (distance < this.subdivideDistance) {
+	        const intersects = [];
+	        for (let t = 0; t < this.subdivisionRays; t++) {
+	            this.mouse.set(Math.random() * 2 - 1, Math.random() * 2 - 1);
+	            this.raycaster.setFromCamera(this.mouse, camera);
+	            this.raycaster.intersectObjects(view.children, true, intersects);
+	        }
+	        for (let i = 0; i < intersects.length; i++) {
+	            const node = intersects[i].object;
+	            let distance = intersects[i].distance;
+	            if (this.powerDistance) {
+	                distance = Math.pow(distance * 2, node.level);
+	            }
+	            if (this.scaleDistance) {
+	                const matrix = node.matrixWorld.elements;
+	                const vector = new three.Vector3(matrix[0], matrix[1], matrix[2]);
+	                distance = vector.length() / distance;
+	            }
+	            if (distance > this.thresholdUp) {
 	                node.subdivide();
+	                return;
 	            }
-	            else if (distance > this.simplifyDistance && node.parentNode) {
-	                node.parentNode.simplify();
+	            else if (distance < this.thresholdDown) {
+	                if (node.parentNode !== null) {
+	                    node.parentNode.simplify();
+	                    return;
+	                }
 	            }
-	        });
-	    }
-	}
-
-	const projection = new three.Matrix4();
-	const pov = new three.Vector3();
-	const frustum = new three.Frustum();
-	const position = new three.Vector3();
-	class LODFrustum extends LODRadial {
-	    constructor() {
-	        super(...arguments);
-	        this.subdivideDistance = 120;
-	        this.simplifyDistance = 400;
-	        this.testCenter = true;
-	        this.pointOnly = false;
-	    }
-	    updateLOD(view, camera, renderer, scene) {
-	        projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-	        frustum.setFromProjectionMatrix(projection);
-	        camera.getWorldPosition(pov);
-	        view.children[0].traverse((node) => {
-	            node.getWorldPosition(position);
-	            let distance = pov.distanceTo(position);
-	            distance /= Math.pow(2, view.provider.maxZoom - node.level);
-	            const inFrustum = this.pointOnly ? frustum.containsPoint(position) : frustum.intersectsObject(node);
-	            if (distance < this.subdivideDistance && inFrustum) {
-	                node.subdivide();
-	            }
-	            else if (distance > this.simplifyDistance && node.parentNode) {
-	                node.parentNode.simplify();
-	            }
-	        });
+	        }
 	    }
 	}
 
@@ -1447,6 +1556,13 @@
 	                reject();
 	            };
 	            image.crossOrigin = 'Anonymous';
+	            if (this.getUrl) {
+	                const url = this.getUrl(zoom, x, y);
+	                if (url !== false) {
+	                    image.src = url;
+	                    return;
+	                }
+	            }
 	            image.src = 'http://ecn.' + this.subdomain + '.tiles.virtualearth.net/tiles/' + this.type + BingMapsProvider.quadKey(zoom, x, y) + '.jpeg?g=1173';
 	        });
 	    }
@@ -1567,6 +1683,13 @@
 	                reject();
 	            };
 	            image.crossOrigin = 'Anonymous';
+	            if (this.getUrl) {
+	                const url = this.getUrl(zoom, x, y);
+	                if (url !== false) {
+	                    image.src = url;
+	                    return;
+	                }
+	            }
 	            if (this.mode === MapBoxProvider.STYLE) {
 	                image.src = MapBoxProvider.ADDRESS + 'styles/v1/' + this.style + '/tiles/' + zoom + '/' + x + '/' + y + (this.useHDPI ? '@2x?access_token=' : '?access_token=') + this.apiToken;
 	            }
@@ -1698,6 +1821,24 @@
 	    }
 	}
 
+	class TerrainProvider extends MapProvider {
+	    constructor(options = {}) {
+	        super();
+	        this.url = options.url;
+	    }
+	    getMetaData() { }
+	    fetchTile(zoom, x, y) {
+	        const address = `http://172.21.73.32:9000/terrain/f878a300a38b11ecb897cb1c7b6e777c/${zoom}/${x}/${y}.terrain`;
+	        return new Promise((resolve, reject) => {
+	            XHRUtils.get(address, (data) => {
+	                resolve(data);
+	            }, () => {
+	                reject();
+	            });
+	        });
+	    }
+	}
+
 	class CancelablePromise {
 	    constructor(executor) {
 	        this.fulfilled = false;
@@ -1797,10 +1938,12 @@
 	exports.MapProvider = MapProvider;
 	exports.MapSphereNode = MapSphereNode;
 	exports.MapSphereNodeGeometry = MapSphereNodeGeometry;
+	exports.MapTerrainNode = MapTerrainNode;
 	exports.MapTilerProvider = MapTilerProvider;
 	exports.MapView = MapView;
 	exports.OpenMapTilesProvider = OpenMapTilesProvider;
 	exports.OpenStreetMapsProvider = OpenStreetMapsProvider;
+	exports.TerrainProvider = TerrainProvider;
 	exports.UnitsUtils = UnitsUtils;
 	exports.XHRUtils = XHRUtils;
 

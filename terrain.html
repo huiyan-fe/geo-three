@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<style>
+		body {
+			color: #FFFFFF;
+		}
+
+		input {
+			background-color: #FFFFFF88;
+			position: absolute;
+			width: 200px;
+			height: 25px;
+		}
+
+		select {
+			background-color: #FFFFFF88;
+			width: 200px;
+			height: 25px;
+		}
+	</style>
+</head>
+<body>
+	<!-- GUI -->
+	<canvas id="canvas" style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></canvas>
+
+	<select id="mode" style="position: absolute; top: 20px; right: 20px;"></select>
+	<select id="providerColor" style="position: absolute; top: 50px; right: 20px;"></select>
+	<select id="providerHeight" style="position: absolute; top: 80px; right: 20px;"></select>
+	<select id="lod" style="position: absolute; top: 110px; right: 20px;"></select>
+
+	<!-- API KEys -->
+	<input id="mapbox_api" 
+		value="pk.eyJ1IjoibGlnYW9mZW5nMDkwMSIsImEiOiJjazJ4MGM4a24wbDhwM2xsenNjcGFwNmxmIn0.NHeyO2E3JokHL5zktvWo6A"
+		placeholder="Mapbox API KEY" style="top: 140px; right: 20px;"></input>
+	<input id="heremaps_id" placeholder="HERE Maps ID" style="top: 170px; right: 20px; "></input>
+	<input id="heremaps_code" placeholder="HERE Maps Code" style="top: 200px; right: 20px;"></input>
+	<input id="bing_api" placeholder="Bing API KEY" style="top: 230px; right: 20px;"></input>
+	<input id="maptiler_api" placeholder="MapTiler API KEY" style="top: 260px; right: 20px;"></input>
+	<input id="openmap_tiles_server" placeholder="OpenMap Tiles URL" style="top: 290px; right: 20px;"></input>
+
+
+	<!-- Code -->
+	<script type="text/javascript" src="https://threejs.org/build/three.min.js"></script>
+	<script type="text/javascript" src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+	<script type="text/javascript" src="https://threejs.org/examples/js/objects/Sky.js"></script>
+	<script type="text/javascript" src="./build/geo-three.js"></script>
+	<script type="text/javascript">
+		var canvas = document.getElementById("canvas");
+
+		var renderer = new THREE.WebGLRenderer({
+			canvas: canvas,
+			antialias: true
+		});
+
+		var scene = new THREE.Scene();
+		scene.background = new THREE.Color(0.4, 0.4, 0.4);
+
+		var sky = createSky();
+		scene.add(sky);
+
+
+		let imageryProvider = new Geo.BingMapsProvider();
+		// let imageryProvider = new Geo.MapBoxProvider();
+		// imageryProvider.maxZoom = 18;
+		// imageryProvider.getUrl = (z, x, y) => {
+		// 	return `http://172.21.73.32/qgis/chongqin/domtiles/${z}/${x}/${y}.png`;
+		// };
+
+		let terrainProvider = new Geo.MapBoxProvider();
+		terrainProvider.getUrl = (z, x, y) => {
+			return `http://localhost/test/demtiles/${z}/${x}/${y}.png`;
+		};
+
+		var map = new Geo.MapView(Geo.MapView.HEIGHT, imageryProvider, terrainProvider);
+		scene.add(map);
+		map.updateMatrixWorld(true);
+		
+		var camera = new THREE.PerspectiveCamera(80, 1, 1e2, 1e12);
+
+		var coords = Geo.UnitsUtils.datumsToSpherical(29.361202455839987, 105.93303195863231);
+		
+		var test = new THREE.Mesh(new THREE.BoxGeometry(100, 100, 100), new THREE.MeshPhongMaterial({wireframe: false, color: 0xFFFFFF}));
+		test.position.set(coords.x, 1000, -coords.y);
+		scene.add(test);
+		
+		var controls = new THREE.MapControls(camera, canvas);
+		controls.minDistance = 1e1;
+		controls.zoomSpeed = 2.0;
+
+		
+		controls.target.set(coords.x, 0, -coords.y);
+		camera.position.set(coords.x, 500000, -coords.y);
+
+		scene.add(new THREE.AmbientLight(0x777777));
+
+		var directional = new THREE.DirectionalLight(0x888888);
+		directional.position.set(100, 10000, 700);
+		scene.add(directional);
+
+		document.body.onresize = function()
+		{
+			var width = window.innerWidth;
+			var height = window.innerHeight;
+			renderer.setSize(width, height);
+			camera.aspect = width / height;
+			camera.updateProjectionMatrix();
+		}
+		document.body.onresize();
+
+		let shouldUpdate = true;
+		map.onNodeReady = () => {
+			// console.log("onNodeReady");
+			shouldUpdate = true;
+		};
+		map.onNodeCreated = () => {
+			// console.log("onNodeCreated");
+			shouldUpdate = true;
+		}
+
+		map.onNodeSubdivided = () => {
+			// console.log("onNodeSubdivided");
+			shouldUpdate = true;
+		}
+		function animate()
+		{
+			requestAnimationFrame(animate);
+			controls.update();
+			//if (shouldUpdate) {
+				shouldUpdate = false;
+				map.update(camera);
+			//}
+			
+			renderer.render(scene, camera);
+		}
+		animate();
+
+		function createSky()
+		{
+			// Add Sky
+			var sky = new THREE.Sky();
+			sky.scale.setScalar(1e8);
+
+			// GUI
+			var effectController = {
+				turbidity: 0,
+				rayleigh: 0.5,
+				mieCoefficient: 0.005,
+				mieDirectionalG: 0.7,
+				inclination: 0.48,
+				azimuth: 0.25,
+				exposure: 0.5
+			};
+
+			const uniforms = sky.material.uniforms;
+			uniforms["turbidity"].value = effectController.turbidity;
+			uniforms["rayleigh"].value = effectController.rayleigh;
+			uniforms["mieCoefficient"].value = effectController.mieCoefficient;
+			uniforms["mieDirectionalG"].value = effectController.mieDirectionalG;
+
+			var theta = Math.PI * (effectController.inclination - 0.5);
+			var phi = 2 * Math.PI * (effectController.azimuth - 0.5);
+
+			var sun = new THREE.Vector3();
+			sun.x = Math.cos(phi);
+			sun.y = Math.sin(phi) * Math.sin(theta);
+			sun.z = Math.sin(phi) * Math.cos(theta);
+			uniforms["sunPosition"].value.copy(sun);
+
+			return sky;
+		}
+
+	</script>
+</body>
+</html>

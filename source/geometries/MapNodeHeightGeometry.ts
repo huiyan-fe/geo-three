@@ -34,9 +34,17 @@ export class MapNodeHeightGeometry extends BufferGeometry
 			const b = data[i + 2];
 
 			// The value will be composed of the bits RGB
-			const value = (r * 65536 + g * 256 + b) * 0.1 - 1e4;
+			if (r === 0 && g === 0 && b === 0)
+			{
+				vertices[j + 1] = 0;
+			}
+			else 
+			{
+				const value = (r * 65536 + g * 256 + b) * 0.1 - 1e4;
 
-			vertices[j + 1] = value;
+				vertices[j + 1] = value;
+			}
+			
 		}
 
 		// Generate the skirt

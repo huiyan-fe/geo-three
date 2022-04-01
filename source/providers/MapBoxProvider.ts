@@ -139,6 +139,17 @@ export class MapBoxProvider extends MapProvider
 			};
 			image.crossOrigin = 'Anonymous';
 
+			if (this.getUrl)
+			{
+				const url = this.getUrl(zoom, x, y);
+				if (url !== false)
+				{
+					image.src = url;
+					return;
+				}
+			}
+			
+			
 			if (this.mode === MapBoxProvider.STYLE) 
 			{
 				image.src = MapBoxProvider.ADDRESS + 'styles/v1/' + this.style + '/tiles/' + zoom + '/' + x + '/' + y + (this.useHDPI ? '@2x?access_token=' : '?access_token=') + this.apiToken;

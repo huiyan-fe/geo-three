@@ -43,7 +43,7 @@ export class LODFrustum extends LODRadial
 		projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
 		frustum.setFromProjectionMatrix(projection);
 		camera.getWorldPosition(pov);
-
+		// console.log('updateLOD');
 		view.children[0].traverse((node: any) => 
 		{
 			node.getWorldPosition(position);
@@ -55,10 +55,12 @@ export class LODFrustum extends LODRadial
 			if (distance < this.subdivideDistance && inFrustum) 
 			{
 				node.subdivide();
+				// console.log('subdivide');
 			}
 			else if (distance > this.simplifyDistance && node.parentNode) 
 			{
 				node.parentNode.simplify();
+				// console.log('simplify');
 			}
 		});
 	}

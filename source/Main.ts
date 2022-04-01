@@ -15,6 +15,7 @@ export {OpenMapTilesProvider} from './providers/OpenMapTilesProvider';
 export {OpenStreetMapsProvider} from './providers/OpenStreetMapsProvider';
 export {DebugProvider} from './providers/DebugProvider';
 export {HeightDebugProvider} from './providers/HeightDebugProvider';
+export {TerrainProvider} from './providers/TerrainProvider';
 
 export {MapNodeGeometry} from './geometries/MapNodeGeometry';
 export {MapNodeHeightGeometry} from './geometries/MapNodeHeightGeometry';
@@ -25,6 +26,7 @@ export {MapNode} from './nodes/MapNode';
 export {MapPlaneNode} from './nodes/MapPlaneNode';
 export {MapSphereNode} from './nodes/MapSphereNode';
 export {MapHeightNodeShader} from './nodes/MapHeightNodeShader';
+export {MapTerrainNode} from './nodes/MapTerrainNode';
 
 export {UnitsUtils} from './utils/UnitsUtils';
 export {CancelablePromise} from './utils/CancelablePromise';

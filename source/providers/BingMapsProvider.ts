@@ -144,6 +144,15 @@ export class BingMapsProvider extends MapProvider
 				reject();
 			};
 			image.crossOrigin = 'Anonymous';
+			if (this.getUrl)
+			{
+				const url = this.getUrl(zoom, x, y);
+				if (url !== false)
+				{
+					image.src = url;
+					return;
+				}
+			}
 			image.src = 'http://ecn.' + this.subdomain + '.tiles.virtualearth.net/tiles/' + this.type + BingMapsProvider.quadKey(zoom, x, y) + '.jpeg?g=1173';
 		});
 	}
