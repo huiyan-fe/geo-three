@@ -144,6 +144,11 @@ export abstract class MapNode extends Mesh
 		this.x = x;
 		this.y = y;
 
+		if (mapView.overrideMaterial) {
+			this.material = mapView.overrideMaterial;
+			this.textureLoaded = true;
+		}
+
 		this.initialize();
 	}
 
@@ -275,7 +280,7 @@ export abstract class MapNode extends Mesh
 		{
 			this.visible = true;
 		}
-		// console.log('node ready');
+		// console.log('node ready', this.level, this.x, this.y);
 		this.mapView.onNodeReady && this.mapView.onNodeReady();
 	}
 

@@ -38,6 +38,8 @@ export class LODFrustum extends LODRadial
 	 */
 	public pointOnly: boolean = false;
 
+	public lodOffset: number = 0;
+
 	public updateLOD(view: MapView, camera: Camera, renderer: WebGLRenderer, scene: Object3D): void
 	{
 		projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -47,8 +49,10 @@ export class LODFrustum extends LODRadial
 		view.children[0].traverse((node: any) => 
 		{
 			node.getWorldPosition(position);
+			// console.log(position);
+			// position.z += 300;
 			let distance = pov.distanceTo(position);
-			distance /= Math.pow(2, view.provider.maxZoom - node.level);
+			distance /= Math.pow(2, view.provider.maxZoom - node.level + this.lodOffset);
 
 			const inFrustum = this.pointOnly ? frustum.containsPoint(position) : frustum.intersectsObject(node);
 

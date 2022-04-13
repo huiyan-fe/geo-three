@@ -21,10 +21,10 @@ export class MapHeightNode extends MapNode
 	 */
 	public heightLoaded: boolean = false;
 
-	/**
-	 * Flag indicating if the tile texture was loaded.
-	 */
-	public textureLoaded: boolean = false;
+	// /**
+	//  * Flag indicating if the tile texture was loaded.
+	//  */
+	// public textureLoaded: boolean = false;
 
 	/**
 	 * Original tile size of the images retrieved from the height provider.
@@ -70,13 +70,25 @@ export class MapHeightNode extends MapNode
 		this.isMesh = true;
 		this.visible = false;
 		this.matrixAutoUpdate = false;
+
 	}
 
 	public initialize(): void 
 	{
 		super.initialize();
-
-		this.loadTexture();
+		// console.log(this.textureLoaded);
+		if (!this.textureLoaded)
+		{
+			this.loadTexture();
+		}
+		else 
+		{
+			// 在构造函数执行之后覆盖
+			setTimeout(() => 
+			{
+				this.textureLoaded = true;
+			}, 0);
+		}
 		this.loadHeightGeometry();
 	}
 
@@ -87,6 +99,7 @@ export class MapHeightNode extends MapNode
 	 */
 	public loadTexture(): void 
 	{
+		// console.log('loadTexture')
 		this.mapView.provider.fetchTile(this.level, this.x, this.y).then((image) => 
 		{
 			const texture = new Texture(image as any);
@@ -99,18 +112,20 @@ export class MapHeightNode extends MapNode
 			// @ts-ignore
 			this.material.map = texture;
 		})
-		.catch(err => {
-			console.log('texture error');
-		})
-		.finally(() =>
-		{
-			this.textureLoaded = true;
-			this.nodeReady();
-		});
+			.catch(() =>
+			{
+				console.log('texture error');
+			})
+			.finally(() =>
+			{
+				this.textureLoaded = true;
+				this.nodeReady();
+			});
 	}
 
 	public nodeReady(): void 
 	{
+		// console.log(this.heightLoaded, this.textureLoaded);
 		if (!this.heightLoaded || !this.textureLoaded) 
 		{
 			return;
