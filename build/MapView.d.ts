@@ -15,7 +15,7 @@ export declare class MapView extends Mesh {
     provider: MapProvider;
     heightProvider: MapProvider;
     root: MapNode;
-    constructor(root?: (number | MapNode), provider?: MapProvider, heightProvider?: MapProvider);
+    constructor(root?: (number | MapNode), provider?: MapProvider, heightProvider?: MapProvider, overrideMaterial?: any);
     update(camera: Camera, renderer: WebGLRenderer, scene: Scene): void;
     setRoot(root: (MapNode | number)): void;
     setProvider(provider: MapProvider): void;

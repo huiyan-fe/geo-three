@@ -3,7 +3,6 @@ import { MapNode } from './MapNode';
 import { MapView } from '../MapView';
 export declare class MapHeightNode extends MapNode {
     heightLoaded: boolean;
-    textureLoaded: boolean;
     static tileSize: number;
     geometrySize: number;
     geometryNormals: boolean;

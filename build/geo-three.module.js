@@ -178,6 +178,10 @@ class MapNode extends Mesh {
         this.level = level;
         this.x = x;
         this.y = y;
+        if (mapView.overrideMaterial) {
+            this.material = mapView.overrideMaterial;
+            this.textureLoaded = true;
+        }
         this.initialize();
     }
     initialize() {
@@ -419,7 +423,6 @@ class MapHeightNode extends MapNode {
     constructor(parentNode = null, mapView = null, location = MapNode.root, level = 0, x = 0, y = 0, geometry = MapHeightNode.geometry, material = new MeshStandardMaterial({ wireframe: false, color: 0xffffff })) {
         super(parentNode, mapView, location, level, x, y, geometry, material);
         this.heightLoaded = false;
-        this.textureLoaded = false;
         this.geometrySize = 16;
         this.geometryNormals = false;
         material.alphaTest = 0.1;
@@ -429,7 +432,14 @@ class MapHeightNode extends MapNode {
     }
     initialize() {
         super.initialize();
-        this.loadTexture();
+        if (!this.textureLoaded) {
+            this.loadTexture();
+        }
+        else {
+            setTimeout(() => {
+                this.textureLoaded = true;
+            }, 0);
+        }
         this.loadHeightGeometry();
     }
     loadTexture() {
@@ -442,7 +452,7 @@ class MapHeightNode extends MapNode {
             texture.needsUpdate = true;
             this.material.map = texture;
         })
-            .catch(err => {
+            .catch(() => {
             console.log('texture error');
         })
             .finally(() => {
@@ -760,6 +770,7 @@ class LODFrustum extends LODRadial {
         this.simplifyDistance = 400;
         this.testCenter = true;
         this.pointOnly = false;
+        this.lodOffset = 0;
     }
     updateLOD(view, camera, renderer, scene) {
         projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -768,7 +779,7 @@ class LODFrustum extends LODRadial {
         view.children[0].traverse((node) => {
             node.getWorldPosition(position);
             let distance = pov.distanceTo(position);
-            distance /= Math.pow(2, view.provider.maxZoom - node.level);
+            distance /= Math.pow(2, view.provider.maxZoom - node.level + this.lodOffset);
             const inFrustum = this.pointOnly ? frustum.containsPoint(position) : frustum.intersectsObject(node);
             if (distance < this.subdivideDistance && inFrustum) {
                 node.subdivide();
@@ -1320,13 +1331,14 @@ MapTerrainNode.baseGeometry = MapPlaneNode.geometry;
 MapTerrainNode.baseScale = new Vector3(UnitsUtils.EARTH_PERIMETER, 1, UnitsUtils.EARTH_PERIMETER);
 
 class MapView extends Mesh {
-    constructor(root = MapView.PLANAR, provider = new OpenStreetMapsProvider(), heightProvider = null) {
+    constructor(root = MapView.PLANAR, provider = new OpenStreetMapsProvider(), heightProvider = null, overrideMaterial = null) {
         super(undefined, new MeshBasicMaterial({ transparent: true, opacity: 0.0 }));
         this.lod = null;
         this.onNodeReady = null;
         this.provider = null;
         this.heightProvider = null;
         this.root = null;
+        this.overrideMaterial = overrideMaterial;
         this.lod = new LODFrustum();
         this.provider = provider;
         this.heightProvider = heightProvider;
@@ -1820,11 +1832,11 @@ class HeightDebugProvider extends MapProvider {
 class TerrainProvider extends MapProvider {
     constructor(options = {}) {
         super();
-        this.url = options.url;
+        this.getUrl = options.getUrl;
     }
     getMetaData() { }
     fetchTile(zoom, x, y) {
-        const address = `http://172.21.73.32:9000/terrain/f878a300a38b11ecb897cb1c7b6e777c/${zoom}/${x}/${y}.terrain`;
+        const address = this.getUrl(zoom, x, y);
         return new Promise((resolve, reject) => {
             XHRUtils.get(address, (data) => {
                 resolve(data);

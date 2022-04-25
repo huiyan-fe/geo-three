@@ -241,10 +241,10 @@
 		{
 			requestAnimationFrame(animate);
 			controls.update();
-			if (shouldUpdate) {
+			//if (shouldUpdate) {
 				shouldUpdate = false;
 				map.update(camera);
-			}
+			//}
 			
 			renderer.render(scene, camera);
 		}
